@@ -87,12 +87,12 @@ def SSIM(x_true , x_pred):
     return s/np.shape(x_pred)[0]
 
 
-def Dataset_preprocessing(dataset = 'MNIST', batch_size = 64):
+def Dataset_preprocessing(dataset='MNIST', img_size=32, batch_size=64, ood_experiment=False):
     
     if dataset == 'mnist':
 
         (train_images, train_labels), (test_images, _) = tf.keras.datasets.mnist.load_data()
-        if config.ood_experiment:
+        if ood_experiment:
 
             np.random.seed(0)
 
@@ -116,7 +116,7 @@ def Dataset_preprocessing(dataset = 'MNIST', batch_size = 64):
         images = np.load('datasets/ellipses_64.npy')
         train_images , test_images = np.split(images , [55000])
 
-    r = config.img_size
+    r = img_size
   
     train_images = image_resizer(train_images, r)
     test_images = image_resizer(test_images, r)
