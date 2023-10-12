@@ -113,8 +113,7 @@ def main():
             logger.debug(e)
 
     train_dataset , test_dataset = ut.Dataset_preprocessing(dataset=args.dataset, batch_size=args.batch_size)
-    logger.info(f'Dataset is loaded: training and test dataset shape: 
-        {np.shape(next(iter(train_dataset)))} {np.shape(next(iter(test_dataset)))}')
+    logger.info(f"Dataset is loaded: training and test dataset shape: {np.shape(next(iter(train_dataset)))}, {np.shape(next(iter(test_dataset)))}")
 
     _ , image_size , _ , c = np.shape(next(iter(train_dataset)))
     latent_dim = 64
