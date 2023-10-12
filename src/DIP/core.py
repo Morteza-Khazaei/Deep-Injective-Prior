@@ -5,9 +5,9 @@ import logging
 import numpy as np
 from time import time
 import tensorflow as tf
-from utility import utils as ut
+from .utility import utils
 from models import injective, bijective, prior
-from utility import scattering_utils
+from .utility import scattering_utils
 import imageio
 
 import matplotlib.pyplot as plt
@@ -93,14 +93,14 @@ def main():
     logger = init_loggers(msg_level=logging_level)
 
     workspace = os.path.join(os.path.join(os.path.expanduser('~')), 'Desktop', 'DIP')
-    ut.create_directory(workspace)
+    utils.create_directory(workspace)
 
     all_experiments = os.path.join(workspace, 'experiments')
-    ut.create_directory(all_experiments)
+    utils.create_directory(all_experiments)
 
     # experiment path
     exp_path = os.path.join(all_experiments, f'{args.dataset}_{args.inj_depth}_{args.bij_depth}_{args.desc}')
-    ut.create_directory(exp_path)
+    utils.create_directory(exp_path)
 
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
@@ -112,7 +112,7 @@ def main():
             # Visible devices must be set before GPUs have been initialized
             logger.debug(e)
 
-    train_dataset , test_dataset = ut.Dataset_preprocessing(dataset=args.dataset, batch_size=args.batch_size)
+    train_dataset , test_dataset = utils.Dataset_preprocessing(dataset=args.dataset, batch_size=args.batch_size)
     logger.info(f"Dataset is loaded: training and test dataset shape: {np.shape(next(iter(train_dataset)))}, {np.shape(next(iter(test_dataset)))}")
 
     _ , image_size , _ , c = np.shape(next(iter(train_dataset)))
@@ -171,13 +171,13 @@ def main():
         for epoch in range(args.n_epochs_inj):
             epoch_start = time()  
             for x in train_dataset:
-                ut.train_step_mse(x, inj_model, optimizer_inj)
+                utils.train_step_mse(x, inj_model, optimizer_inj)
             
             # Reconstrctions
             test_gt = next(iter(test_dataset))[:args.n_test]
             z_test = inj_model(test_gt[:args.n_test], reverse= False)[0] 
             test_recon = inj_model(z_test , reverse = True)[0].numpy()[:args.n_test]
-            psnr = ut.PSNR(test_gt.numpy(), test_recon)
+            psnr = utils.PSNR(test_gt.numpy(), test_recon)
 
             test_recon = test_recon[:, :, :, ::-1].reshape(ngrid, ngrid,
                 image_size, image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1,
@@ -232,7 +232,7 @@ def main():
         for epoch in range(args.n_epochs_bij):
             epoch_start = time()
             for x in z_inters_dataset:
-                ml_loss = ut.train_step_ml(x, bij_model, pz, optimizer_bij).numpy()
+                ml_loss = utils.train_step_ml(x, bij_model, pz, optimizer_bij).numpy()
                         
             # Sampling
             z_base = pz.prior.sample(args.n_test) # sampling from base (Gaussian) 
