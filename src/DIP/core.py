@@ -5,9 +5,9 @@ import logging
 import numpy as np
 from time import time
 import tensorflow as tf
-import utils as ut
+from utility import utils as ut
 from models import injective, bijective, prior
-import scattering_utils
+from utility import scattering_utils
 import imageio
 
 import matplotlib.pyplot as plt

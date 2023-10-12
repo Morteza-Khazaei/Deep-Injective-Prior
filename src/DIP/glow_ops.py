@@ -2,8 +2,7 @@ import tensorflow as tf
 from tensorflow.keras import layers
 import scipy
 import numpy as np
-from Unet_util import Unet
-import config
+from utility.Unet_util import Unet
 
 
 class upsqueeze(layers.Layer):
@@ -243,14 +242,15 @@ class conv_stack(layers.Layer):
 
 
 class affine_coupling(layers.Layer):
-    def __init__(self):
+    def __init__(self, unet_coupling=True):
         super(affine_coupling, self).__init__()
+        self.unet_coupling = unet_coupling
         
 
     def build(self, input_shape):
         out_channels = input_shape[-1]
 
-        if config.unet_coupling:
+        if self.unet_coupling:
             self.conv_stack = Unet(out_channels) # Unet conv stack
         
         else:
