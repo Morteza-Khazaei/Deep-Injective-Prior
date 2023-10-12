@@ -36,6 +36,7 @@ def init_loggers(msg_level=logging.DEBUG):
 
 
 def main():
+    
     assert sys.version_info >= (3, 5), "DIP needs python >= 3.5.\n Run 'python --version' for more info."
     import argparse
     parser = argparse.ArgumentParser(description="Generative Model Training and Posterior Modeling")
@@ -92,15 +93,33 @@ def main():
     logging_level = logging.DEBUG if args.verbose else logging.INFO
     logger = init_loggers(msg_level=logging_level)
 
+    def create_directory(path):
+        """
+        Creates a Directory with the given path. Throws a warning if it's already existing and an error if
+        a file with the same name already exists.
+        :param path: The full path to the new directory
+        """
+        if os.path.exists(path):
+            if not os.path.isdir(path):
+                raise IOError("Cannot create the output directory. There is a file with the same name: %s" % path)
+            else:
+                logger.debug("Directory already existing: %s" % path)
+        else:
+            try:
+                os.makedirs(path)
+            except OSError:
+                raise IOError("Cannot create directory %s" % path)
+        return 0
+
     workspace = os.path.join(os.path.join(os.path.expanduser('~')), 'Desktop', 'DIP')
-    utils.create_directory(workspace)
+    create_directory(workspace)
 
     all_experiments = os.path.join(workspace, 'experiments')
-    utils.create_directory(all_experiments)
+    create_directory(all_experiments)
 
     # experiment path
     exp_path = os.path.join(all_experiments, f'{args.dataset}_{args.inj_depth}_{args.bij_depth}_{args.desc}')
-    utils.create_directory(exp_path)
+    create_directory(exp_path)
 
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
@@ -112,7 +131,7 @@ def main():
             # Visible devices must be set before GPUs have been initialized
             logger.debug(e)
 
-    train_dataset , test_dataset = utils.Dataset_preprocessing(dataset=args.dataset, batch_size=args.batch_size)
+    train_dataset, test_dataset = utils.Dataset_preprocessing(dataset=args.dataset, batch_size=args.batch_size)
     logger.info(f"Dataset is loaded: training and test dataset shape: {np.shape(next(iter(train_dataset)))}, {np.shape(next(iter(test_dataset)))}")
 
     _ , image_size , _ , c = np.shape(next(iter(train_dataset)))

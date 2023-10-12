@@ -3,7 +3,6 @@ import numpy as np
 import cv2
 from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
-import config
 
 
 
@@ -139,83 +138,3 @@ def Dataset_preprocessing(dataset = 'MNIST', batch_size = 64):
     test_dataset = test_dataset.batch(batch_size)
 
     return train_dataset , test_dataset
-
-
-
-def create_directory(path):
-    """
-    Creates a Directory with the given path. Throws a warning if it's already existing and an error if
-    a file with the same name already exists.
-    :param path: The full path to the new directory
-    """
-    if os.path.exists(path):
-        if not os.path.isdir(path):
-            raise IOError("Cannot create the output directory. There is a file with the same name: %s" % path)
-        else:
-            logging.debug("Directory already existing: %s" % path)
-    else:
-        try:
-            os.makedirs(path)
-        except OSError:
-            raise IOError("Cannot create directory %s" % path)
-    return 0
-
-
-
-class Config:
-
-    def __init__(self, cfg_file):
-        import configparser as cfg
-        # Parsing configuration file
-        config = cfg.ConfigParser()
-        config.read(cfg_file)
-
-        # [TRAINING]
-        section = 'TRAINING'
-        self.train_injective = config.get(section, 'train_injective')
-        self.train_bijective = config.get(section, 'train_bijective')
-        self.n_epochs_inj = config.get(section, 'n_epochs_inj')
-        self.n_epochs_bij = config.get(section, 'n_epochs_bij')
-        self.img_size = config.get(section, 'img_size')
-        self.batch_size = config.get(section, 'batch_size')
-        self.dataset = config.get(section, 'dataset')
-        self.lr = config.get(section, 'lr')
-        self.gpu_num = config.get(section, 'gpu_num')
-        self.desc = config.get(section, 'desc')
-        self.inj_depth = config.get(section, 'inj_depth')
-        self.bij_depth = config.get(section, 'bij_depth')
-        self.reload = config.get(section, 'reload')
-        self.ood_experiment = config.get(section, 'ood_experiment')
-        self.unet_coupling = config.get(section, 'unet_coupling')
-        self.n_test = config.get(section, 'n_test')
-
-        # [ISPs]
-        section = 'ISPs'
-        self.inverse_scattering_solver = config.get(section, 'inverse_scattering_solver')
-
-        # [MAP]
-        section = 'MAP'
-        self.run_map = config.get(section, 'run_map')
-        self.reload_solver = config.get(section, 'reload_solver')
-        self.problem_desc = config.get(section, 'problem_desc')
-        self.noise_snr = config.get(section, 'noise_snr')
-        self.er = config.get(section, 'er')
-        self.solver = config.get(section, 'solver')
-        self.optimizer = config.get(section, 'optimizer')
-        self.lr_inv = config.get(section, 'lr_inv')
-        self.initial_guess = config.get(section, 'initial_guess')
-        self.nsteps = config.get(section, 'nsteps')
-        self.scattering_data = config.get(section, 'scattering_data')
-        self.fresnel_sample = config.get(section, 'fresnel_sample')
-        self.cmap = config.get(section, 'cmap')
-        self.tv_weight = config.get(section, 'tv_weight')
-        self.num_objects = config.get(section, 'num_objects')
-
-        # [POSTERIOR]
-        section = 'POSTERIOR'
-        self.run_posterior = config.get(section, 'run_posterior')
-        self.reload_posterior = config.get(section, 'reload_posterior')
-        self.nsteps_posterior = config.get(section, 'nsteps_posterior')
-        self.lr_posterior = config.get(section, 'lr_posterior')
-        self.test_nb = config.get(section, 'test_nb')
-        self.beta = config.get(section, 'beta')
