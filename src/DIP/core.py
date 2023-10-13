@@ -110,13 +110,13 @@ def main():
         return 0
 
     workspace = os.path.join(os.path.join(os.path.expanduser('~')), 'Desktop', 'DIP')
-    create_directory(workspace)
 
-    all_experiments = os.path.join(workspace, 'experiments')
-    create_directory(all_experiments)
+    # change working directory
+    os.chdir(workspace)
+    logger.info(f'Current working directory: {os.getcwd()}')
 
     # experiment path
-    exp_path = os.path.join(all_experiments, f'{args.dataset}_{args.inj_depth}_{args.bij_depth}_{args.desc}')
+    exp_path = os.path.join('experiments', f'{args.dataset}_{args.inj_depth}_{args.bij_depth}_{args.desc}')
     create_directory(exp_path)
 
     gpus = tf.config.experimental.list_physical_devices('GPU')

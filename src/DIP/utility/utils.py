@@ -105,9 +105,7 @@ def Dataset_preprocessing(dataset='MNIST', img_size=32, batch_size=64, ood_exper
             train_images = train_images[:test_ind]
             np.random.shuffle(test_images)
             np.random.shuffle(train_images)
-
-
-
+            
         train_images = np.expand_dims(train_images, axis = 3)
         test_images = np.expand_dims(test_images, axis = 3)
         
