@@ -111,6 +111,7 @@ def main():
         return 0
 
     workspace = os.path.join(os.path.join(os.path.expanduser('~')), 'Desktop', 'DIP')
+    create_directory(workspace)
 
     # change working directory
     os.chdir(workspace)
