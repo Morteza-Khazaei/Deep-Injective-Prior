@@ -37,7 +37,8 @@ def main():
     
     assert sys.version_info >= (3, 5), "DIP needs python >= 3.5.\n Run 'python --version' for more info."
     import argparse
-    parser = argparse.ArgumentParser(description="Generative Model Training and Posterior Modeling")
+    parser = argparse.ArgumentParser(description="Generative Model Training and Posterior Modeling", 
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Training of the generative model
     parser.add_argument("--train_injective", help="Train the injective subnetwork", action="store_true", default=True)
