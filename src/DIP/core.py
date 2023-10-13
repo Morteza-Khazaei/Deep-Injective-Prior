@@ -290,9 +290,9 @@ def main():
 
         n_test = 1 if args.scattering_data == 'real' else args.num_objects
         testing_images = next(iter(test_dataset))[:n_test]
-        scattering_op = scattering_utils.scattering_op(args.scattering_data, args.img_size, args.er, n_inc_wave=12)
+        scattering_op = scattering_utils.scattering_op(args, n_inc_wave=12)
 
-        scattering_pipeline = scattering_utils.scattering_solver(exp_path, scattering_op, inj_model, bij_model, pz= pz)
+        scattering_pipeline = scattering_utils.scattering_solver(args, exp_path, scattering_op, inj_model, bij_model, pz= pz)
 
         if args.scattering_data == 'real':
             if args.fresnel_sample == 'FoamDielExt':
