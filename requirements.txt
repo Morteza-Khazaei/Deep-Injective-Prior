@@ -1,9 +1,9 @@
 numpy
 scipy
-cv2
 tqdm
 imageio
 matplotlib
+opencv-python
 scikit-image
 tensorflow
 tensorflow-probability
