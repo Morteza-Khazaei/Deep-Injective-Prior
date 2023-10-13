@@ -1,5 +1,5 @@
 import tensorflow as tf
-import glow_ops as g
+from .glow_ops import *
 import tensorflow_probability as tfp
 
 tfb = tfp.bijectors
@@ -27,8 +27,8 @@ class bijective(tf.keras.Model):
 
         self.depth = kwargs.get('revnet_depth', 3) # revnet depth
 
-        self.squeeze = g.upsqueeze(factor=2)
-        self.revnets = [g.revnet(coupling_type='affine', depth = self.depth , latent_model = True) 
+        self.squeeze = upsqueeze(factor=2)
+        self.revnets = [revnet(coupling_type='affine', depth = self.depth , latent_model = True) 
         for _ in range(6)]
 
     def call(self, x, reverse=False , training = True):
@@ -61,11 +61,11 @@ class injective(tf.keras.Model):
         self.depth = kwargs.get('revnet_depth', 3) # revnet depth
         self.image_size = kwargs.get('image_size', 32)
         
-        self.squeeze = g.upsqueeze(factor=2)
-        self.revnets = [g.revnet(depth= self.depth , latent_model = False) 
+        self.squeeze = upsqueeze(factor=2)
+        self.revnets = [revnet(depth= self.depth , latent_model = False) 
         for _ in range(6)] # Bijective revnets
         
-        self.inj_rev_steps = [g.revnet_step(layer_type='injective',
+        self.inj_rev_steps = [revnet_step(layer_type='injective',
             latent_model = False, activation = 'linear') for _ in range(6)]
         
     def call(self, x, reverse=False , training = True):

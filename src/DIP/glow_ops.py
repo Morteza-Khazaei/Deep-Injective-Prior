@@ -30,7 +30,6 @@ class upsqueeze(layers.Layer):
         return x, 0.0
 
 
-
 class actnorm(layers.Layer):
     """Activation normalization layers that 
     initialized via data"""
@@ -218,9 +217,6 @@ class invertible_1x1_conv(layers.Layer):
         return x, objective
 
 
-
-
-
 class conv_stack(layers.Layer):
     def __init__(self, mid_channels,
                  output_channels):
@@ -237,8 +233,6 @@ class conv_stack(layers.Layer):
 
     def call(self, x):
         return self.conv3(self.conv2(self.conv1(x)))
-
-
 
 
 class affine_coupling(layers.Layer):
