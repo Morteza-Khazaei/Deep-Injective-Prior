@@ -1,18 +1,18 @@
-from tqdm import tqdm
-import numpy as np
 import os
+import numpy as np
+from tqdm import tqdm
 import tensorflow as tf
-import matplotlib.pyplot as plt
-from utils import *
-import config
+
+from .utils import *
 from time import time
+import matplotlib.pyplot as plt
 import tensorflow_probability as tfp
 
 
 
 class scattering_op(object):
     """Builds an inverse scattering problem"""
-    def __init__(self,n_inc_wave=4):
+    def __init__(self, config, n_inc_wave=4):
         
         setup = np.load(f'scattering_config/setup_{config.scattering_data}_{config.img_size}.npz')
         Gd = setup['Gd']
@@ -86,7 +86,7 @@ class scattering_op(object):
 
 class scattering_solver(object):
     
-    def __init__(self, exp_path, scattering_op, injective_model, bijective_model, pz):
+    def __init__(self, config, exp_path, scattering_op, injective_model, bijective_model, pz):
         """
         Args:
             testing_images (tf.Tensor): ground truth images (x) in the inverse problem
@@ -97,11 +97,12 @@ class scattering_solver(object):
             pz (None, tf.distributions): the prior distribution
         """
 
-        prob_folder = os.path.join(exp_path, 'er{}_{}_{}_{}'.format(config.er,
-                                                                    config.initial_guess,
-                                                                    config.solver,
-                                                                    config.problem_desc))
+        self.config = config
 
+        prob_folder = os.path.join(exp_path, 'er{}_{}_{}_{}'.format(self.config.er,
+                                                                    self.config.initial_guess,
+                                                                    self.config.solver,
+                                                                    self.config.problem_desc))
         os.makedirs(prob_folder, exist_ok=True)
 
         self.op = scattering_op
@@ -122,11 +123,11 @@ class scattering_solver(object):
         x_projected = x_projected[:, :, :, ::-1].numpy().reshape(ngrid, ngrid,
             image_size, image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1,
             c)
-        x_projected = (config.er-1) * ((x_projected + 1)/2) + 1
-        plt.imsave(os.path.join(self.prob_folder, 'projection.png'), x_projected[:,:,0], cmap = config.cmap)
+        x_projected = (self.config.er-1) * ((x_projected + 1)/2) + 1
+        plt.imsave(os.path.join(self.prob_folder, 'projection.png'), x_projected[:,:,0], cmap = self.config.cmap)
 
         measurements = self.op.forward_op(testing_images[:ngrid**2])
-        n_snr = config.noise_snr
+        n_snr = self.config.noise_snr
         noise_sigma = 10**(-n_snr/20.0)*tf.math.sqrt(tf.reduce_mean(tf.reduce_sum(
             tf.math.square(tf.math.abs(tf.reshape(measurements, (ngrid**2, -1)))) , -1)))
 
@@ -144,14 +145,14 @@ class scattering_solver(object):
         gt = testing_images[:, :, :, ::-1].numpy().reshape(ngrid, ngrid,
             image_size, image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1,
             c)
-        gt = (config.er-1) * ((gt + 1)/2) + 1
-        plt.imsave(os.path.join(self.prob_folder, 'GT.png'),gt[:,:,0], cmap = config.cmap)
+        gt = (self.config.er-1) * ((gt + 1)/2) + 1
+        plt.imsave(os.path.join(self.prob_folder, 'GT.png'),gt[:,:,0], cmap = self.config.cmap)
 
         bp = self.op.BP(measurements).numpy()[:, :, :, ::-1].reshape(ngrid, ngrid,
             image_size, image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1,
             c)
-        bp = (config.er-1) * ((bp + 1)/2) + 1
-        plt.imsave(os.path.join(self.prob_folder, 'BP.png'), bp[:,:,0], cmap = config.cmap)
+        bp = (self.config.er-1) * ((bp + 1)/2) + 1
+        plt.imsave(os.path.join(self.prob_folder, 'BP.png'), bp[:,:,0], cmap = self.config.cmap)
 
         return measurements
 
@@ -175,7 +176,7 @@ class scattering_solver(object):
                 loss_data = tf.reduce_sum(tf.square(tf.cast(
                     tf.norm(self.op.forward_op(x_guess) - measurements), dtype=tf.float32)))
                 tv_loss = tf.reduce_sum(tf.image.total_variation(x_guess))
-                loss = loss_data + config.tv_weight * tv_loss
+                loss = loss_data + self.config.tv_weight * tv_loss
                 grads = tape.gradient(loss, [x_guess_latent])
                 optimizer.apply_gradients(zip(grads, [x_guess_latent]))
 
@@ -211,7 +212,7 @@ class scattering_solver(object):
                     tf.norm(self.op.forward_op(x_guess) - measurements), dtype=tf.float32)))
                 loss2 = tf.reduce_sum(rev_obj +flow_obj -p)
                 tv_loss = tf.reduce_sum(tf.image.total_variation(x_guess))
-                loss = loss1 + lam * loss2 + config.tv_weight * tv_loss
+                loss = loss1 + lam * loss2 + self.config.tv_weight * tv_loss
 
                 return loss
 
@@ -234,40 +235,40 @@ class scattering_solver(object):
   
 
         
-        if config.solver == 'lso':
+        if self.config.solver == 'lso':
 
             n_test_samples , image_size , _ , c = tf.shape(gt)
             ngrid = int(np.sqrt(n_test_samples))
-            if config.initial_guess == 'BP':
+            if self.config.initial_guess == 'BP':
                 BP_image = self.op.BP(measurements)
                 BP_image, _ = self.encoder(BP_image, reverse=False)
                 BP_image, _ = self.flow(BP_image, reverse=False)
                 x_guess_latent = tf.Variable(BP_image, trainable=True)
 
-            elif config.initial_guess == 'MOG':
+            elif self.config.initial_guess == 'MOG':
                 x_guess_latent = tf.repeat(tf.expand_dims(self.pz.mu, axis=0), repeats=[gt.shape[0]], axis=0)
                 x_guess_latent = tf.Variable(x_guess_latent, trainable=True)
 
-            optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr_inv)
+            optimizer = tf.keras.optimizers.Adam(learning_rate=self.config.lr_inv)
             
             # Checkpoints of the solver
             ckpt = tf.train.Checkpoint(x_guess_latent = x_guess_latent, optimizer= optimizer)
             manager = tf.train.CheckpointManager(
                 ckpt, os.path.join(self.prob_folder, 'MAP_checkpoints'), max_to_keep=3)
 
-            if config.reload_solver:
+            if self.config.reload_solver:
                 ckpt.restore(manager.latest_checkpoint)
 
-            if manager.latest_checkpoint and config.reload_solver:
+            if manager.latest_checkpoint and self.config.reload_solver:
                 print("Solver is restored from {}".format(manager.latest_checkpoint))
             else:
                 print("Solver is initialized from scratch.")
 
             show_per_iter = 1
-            PSNR_plot = np.zeros([config.nsteps//show_per_iter])
-            SSIM_plot = np.zeros([config.nsteps//show_per_iter])
+            PSNR_plot = np.zeros([self.config.nsteps//show_per_iter])
+            SSIM_plot = np.zeros([self.config.nsteps//show_per_iter])
 
-            if config.optimizer == 'lbfgs':
+            if self.config.optimizer == 'lbfgs':
                 start = time()
                 x_guess, loss = lbfgs(x_guess_latent, measurements)
                 end = time()
@@ -279,9 +280,9 @@ class scattering_solver(object):
                 x_guess_write = x_guess[:, :, :, ::-1].numpy().reshape(ngrid, ngrid,
                     image_size, image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1,
                     c)
-                x_guess_write = (config.er-1) * ((x_guess_write + 1)/2) + 1
+                x_guess_write = (self.config.er-1) * ((x_guess_write + 1)/2) + 1
                 
-                plt.imsave(recon_path, x_guess_write[:,:,0], cmap = config.cmap)
+                plt.imsave(recon_path, x_guess_write[:,:,0], cmap = self.config.cmap)
 
                 with open(os.path.join(self.prob_folder, 'results.txt'), 'a') as f:
                     f.write('Loss: {:.2f} | PSNR: {:.2f}| ssim: {:.2f}'.format(
@@ -289,9 +290,9 @@ class scattering_solver(object):
                     f.write('\n')
         
             else: 
-                with tqdm(total=config.nsteps//show_per_iter) as pbar:
+                with tqdm(total=self.config.nsteps//show_per_iter) as pbar:
 
-                    for i in range(config.nsteps):
+                    for i in range(self.config.nsteps):
 
                         x_guess, loss, loss_data, loss_tv = gradient_step_latent(x_guess_latent, measurements)
                         if i % show_per_iter == show_per_iter-1:  
@@ -303,7 +304,7 @@ class scattering_solver(object):
 
                             PSNR_plot[i//show_per_iter] = psnr
                             plt.figure(figsize=(10,6), tight_layout=True)
-                            plt.plot(np.arange(config.nsteps//show_per_iter)[:i//show_per_iter] , PSNR_plot[:i//show_per_iter], 'o-', linewidth=2)
+                            plt.plot(np.arange(self.config.nsteps//show_per_iter)[:i//show_per_iter] , PSNR_plot[:i//show_per_iter], 'o-', linewidth=2)
                             plt.xlabel('iteration')
                             plt.ylabel('PSNR')
                             plt.title('PSNR per {} iteration'.format(show_per_iter))
@@ -312,7 +313,7 @@ class scattering_solver(object):
 
                             SSIM_plot[i//show_per_iter] = s
                             plt.figure(figsize=(10,6), tight_layout=True)
-                            plt.plot(np.arange(config.nsteps//show_per_iter)[:i//show_per_iter] , SSIM_plot[:i//show_per_iter], 'o-', linewidth=2)
+                            plt.plot(np.arange(self.config.nsteps//show_per_iter)[:i//show_per_iter] , SSIM_plot[:i//show_per_iter], 'o-', linewidth=2)
                             plt.xlabel('iteration')
                             plt.ylabel('SSIM')
                             plt.title('SSIM per {} iteration'.format(show_per_iter))
@@ -325,8 +326,8 @@ class scattering_solver(object):
                             x_guess_write = x_guess[:, :, :, ::-1].numpy().reshape(ngrid, ngrid,
                                 image_size, image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1,
                                 c)
-                            x_guess_write = (config.er-1) * ((x_guess_write + 1)/2) + 1
-                            plt.imsave(recon_path, x_guess_write[:,:,0], cmap = config.cmap)
+                            x_guess_write = (self.config.er-1) * ((x_guess_write + 1)/2) + 1
+                            plt.imsave(recon_path, x_guess_write[:,:,0], cmap = self.config.cmap)
 
                             with open(os.path.join(self.prob_folder, 'results.txt'), 'a') as f:
                                 f.write('Loss: {:.2f}| Data: {:.2f}| TV: {:.2f} | PSNR: {:.2f}| SSIM: {:.2f}'.format(
@@ -337,36 +338,36 @@ class scattering_solver(object):
 
 
         
-        elif config.solver == 'dso':
-            if config.initial_guess == 'BP':
+        elif self.config.solver == 'dso':
+            if self.config.initial_guess == 'BP':
                 x_guess = tf.Variable(self.op.BP(measurements), trainable=True)
-            elif config.initial_guess == 'MOG':
+            elif self.config.initial_guess == 'MOG':
                 x_guess_latent = tf.repeat(tf.expand_dims(self.pz.mu, axis=0), repeats=[gt.shape[0]], axis=0)
                 x_guess, _ = self.flow(x_guess_latent, reverse=True)
                 x_guess, _ = self.encoder(x_guess, reverse=True)
                 x_guess = tf.Variable(x_guess, trainable=True)
 
-            optimizer = tf.keras.optimizers.Adam(learning_rate=config.lr_inv)
+            optimizer = tf.keras.optimizers.Adam(learning_rate=self.config.lr_inv)
             
             # Checkpoints of the solver
             ckpt = tf.train.Checkpoint(x_guess = x_guess, optimizer= optimizer)
             manager = tf.train.CheckpointManager(
                 ckpt, os.path.join(self.prob_folder, 'MAP_checkpoints'), max_to_keep=3)
 
-            if config.reload_solver:
+            if self.config.reload_solver:
                 ckpt.restore(manager.latest_checkpoint)
 
-            if manager.latest_checkpoint and config.reload_solver:
+            if manager.latest_checkpoint and self.config.reload_solver:
                 print("Solver is restored from {}".format(manager.latest_checkpoint))
             else:
                 print("Solver is initialized from scratch.")            
 
             show_per_iter = 30
-            PSNR_plot = np.zeros([config.nsteps//show_per_iter])
-            SSIM_plot = np.zeros([config.nsteps//show_per_iter])
-            with tqdm(total=config.nsteps//show_per_iter) as pbar:
+            PSNR_plot = np.zeros([self.config.nsteps//show_per_iter])
+            SSIM_plot = np.zeros([self.config.nsteps//show_per_iter])
+            with tqdm(total=self.config.nsteps//show_per_iter) as pbar:
 
-                for i in range(config.nsteps):
+                for i in range(self.config.nsteps):
 
                     proj_x_guess, loss, loss_data , loss_likelihood = gradient_step_data(x_guess, measurements)
 
@@ -379,7 +380,7 @@ class scattering_solver(object):
                         pbar.update(1)
                         PSNR_plot[i//show_per_iter] = psnr
                         plt.figure(figsize=(10,6), tight_layout=True)
-                        plt.plot(np.arange(config.nsteps//show_per_iter)[:i//show_per_iter] , PSNR_plot[:i//show_per_iter], 'o-', linewidth=2)
+                        plt.plot(np.arange(self.config.nsteps//show_per_iter)[:i//show_per_iter] , PSNR_plot[:i//show_per_iter], 'o-', linewidth=2)
                         plt.xlabel('iteration')
                         plt.ylabel('PSNR')
                         plt.title('PSNR per {} iteration'.format(show_per_iter))
@@ -388,7 +389,7 @@ class scattering_solver(object):
 
                         SSIM_plot[i//show_per_iter] = s
                         plt.figure(figsize=(10,6), tight_layout=True)
-                        plt.plot(np.arange(config.nsteps//show_per_iter)[:i//show_per_iter] , SSIM_plot[:i//show_per_iter], 'o-', linewidth=2)
+                        plt.plot(np.arange(self.config.nsteps//show_per_iter)[:i//show_per_iter] , SSIM_plot[:i//show_per_iter], 'o-', linewidth=2)
                         plt.xlabel('iteration')
                         plt.ylabel('SSIM')
                         plt.title('SSIM per {} iteration'.format(show_per_iter))
@@ -411,8 +412,8 @@ class scattering_solver(object):
                 image_size, image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1,
                 c)
             
-            x_guess_write = (config.er-1) * ((x_guess_write + 1)/2) + 1
-            plt.imsave(recon_path, x_guess_write[:,:,0], cmap = config.cmap)
+            x_guess_write = (self.config.er-1) * ((x_guess_write + 1)/2) + 1
+            plt.imsave(recon_path, x_guess_write[:,:,0], cmap = self.config.cmap)
 
         return x_guess
 
@@ -432,32 +433,32 @@ class scattering_solver(object):
                 
                 loss_kl = tf.reduce_mean(tf.reduce_sum(tf.square(tf.exp(log_sigma_q)) - 2*log_sigma_q, axis = 1))
                 loss_tv = tf.reduce_sum(tf.image.total_variation(x))
-                loss = loss_data + beta*loss_kl + config.tv_weight * loss_tv
+                loss = loss_data + beta*loss_kl + self.config.tv_weight * loss_tv
                 grads = tape.gradient(loss, [log_sigma_q])
                 optimizer_posterior.apply_gradients(zip(grads, [log_sigma_q]))
 
             return loss , loss_data, loss_kl, loss_tv
         
 
-        posterior_folder = os.path.join(self.prob_folder, f'Posterior_{config.beta}_{config.test_nb}')
+        posterior_folder = os.path.join(self.prob_folder, f'Posterior_{self.config.beta}_{self.config.test_nb}')
         os.makedirs(posterior_folder, exist_ok=True)
 
-        mape = np.load(os.path.join(self.prob_folder,'MAP.npy'))[config.test_nb:config.test_nb+1]
+        mape = np.load(os.path.join(self.prob_folder,'MAP.npy'))[self.config.test_nb:self.config.test_nb+1]
         mape = tf.convert_to_tensor(mape, dtype = tf.float32)
         log_sigma_q = tf.zeros(mape.shape)
         mape = tf.Variable(mape, trainable= False)
         log_sigma_q = tf.Variable(log_sigma_q, trainable=True)
-        optimizer_posterior = tf.keras.optimizers.Adam(learning_rate=config.lr_posterior)
+        optimizer_posterior = tf.keras.optimizers.Adam(learning_rate=self.config.lr_posterior)
 
         # Checkpoints of the posterior
         ckpt = tf.train.Checkpoint(log_sigma_q = log_sigma_q, optimizer_posterior= optimizer_posterior, mape = mape)
         manager = tf.train.CheckpointManager(
             ckpt, os.path.join(posterior_folder, f'posterior_checkpoints'), max_to_keep=3)
 
-        if config.reload_posterior:
+        if self.config.reload_posterior:
             ckpt.restore(manager.latest_checkpoint)
 
-        if manager.latest_checkpoint and config.reload_posterior:
+        if manager.latest_checkpoint and self.config.reload_posterior:
             print("Posterior is restored from {}".format(manager.latest_checkpoint))
         else:
             print("Posterior is initialized from scratch.")           
@@ -465,11 +466,11 @@ class scattering_solver(object):
         show_per_iter = 100
         num_posterior = 25
 
-        with tqdm(total=config.nsteps_posterior//show_per_iter) as pbar:
-            for i in range(config.nsteps_posterior):
+        with tqdm(total=self.config.nsteps_posterior//show_per_iter) as pbar:
+            for i in range(self.config.nsteps_posterior):
                 loss, loss_data , loss_kl, loss_tv = gradient_step_posterior(mape,
                                                                              log_sigma_q,measurements,
-                                                                             beta = config.beta)
+                                                                             beta = self.config.beta)
                 if i % show_per_iter == show_per_iter-1:  
                     manager.save()
                     epsilon = tf.random.normal([num_posterior,mape.shape[1]], seed = 0)
@@ -503,22 +504,19 @@ class scattering_solver(object):
                         image_size, image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1,
                         c)
                     
-                    posterior_samples_write = (config.er-1) * ((posterior_samples_write + 1)/2) + 1
-                    plt.imsave(posterior_path,posterior_samples_write[:,:,0], cmap = config.cmap)
+                    posterior_samples_write = (self.config.er-1) * ((posterior_samples_write + 1)/2) + 1
+                    plt.imsave(posterior_path,posterior_samples_write[:,:,0], cmap = self.config.cmap)
 
-                    mmse = (config.er-1) * ((mmse + 1)/2) + 1
+                    mmse = (self.config.er-1) * ((mmse + 1)/2) + 1
                     plt.imsave(os.path.join(posterior_folder, f'mmse.png'),
                                 mmse[0,:,:,0],
-                                cmap = config.cmap)
+                                cmap = self.config.cmap)
                     
                     plt.imsave(os.path.join(posterior_folder, 'uq.png'), uq[0,:,:,0],
-                                cmap = config.cmap)
+                                cmap = self.config.cmap)
                     
                     np.savez(os.path.join(posterior_folder, 'posterior_results.npz'),
                                 gt = gt.numpy()[0,:,:,0],
                                 mape = mape_data.numpy()[0,:,:,0], uq = uq[0,:,:,0],
                                 mmse =  mmse[0,:,:,0],
                                 posterior_samples = posterior_samples_write)
-
-                    
-                  
