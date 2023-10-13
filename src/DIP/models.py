@@ -1,5 +1,4 @@
 import tensorflow as tf
-from utils import *
 import glow_ops as g
 import tensorflow_probability as tfp
 

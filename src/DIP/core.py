@@ -2,15 +2,13 @@ import os
 import sys
 import cv2
 import logging
+import imageio
 import numpy as np
 from time import time
 import tensorflow as tf
-from .utility import utils
-from models import injective, bijective, prior
-from .utility import scattering_utils
-import imageio
-
 import matplotlib.pyplot as plt
+from .utility import utils, scattering_utils
+from .models import injective, bijective, prior
 
 
 @staticmethod
