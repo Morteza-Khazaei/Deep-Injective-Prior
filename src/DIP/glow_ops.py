@@ -2,7 +2,7 @@ import tensorflow as tf
 from keras import layers
 import scipy
 import numpy as np
-from utility.Unet_util import Unet
+from .utility.Unet_util import Unet
 
 
 class upsqueeze(layers.Layer):
