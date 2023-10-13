@@ -2,11 +2,10 @@ import os
 import numpy as np
 from tqdm import tqdm
 import tensorflow as tf
-
-from .utils import *
 from time import time
 import matplotlib.pyplot as plt
 import tensorflow_probability as tfp
+from .utils import *
 
 
 

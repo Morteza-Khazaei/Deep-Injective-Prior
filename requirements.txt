@@ -1,3 +1,9 @@
+numpy
+scipy
+cv2
+tqdm
+imageio
+matplotlib
 scikit-image
 tensorflow
 tensorflow-probability

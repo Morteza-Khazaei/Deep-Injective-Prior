@@ -1,7 +1,7 @@
-import tensorflow as tf
-from keras import layers
 import scipy
 import numpy as np
+import tensorflow as tf
+from keras import layers
 from .utility.Unet_util import Unet
 
 
@@ -121,12 +121,9 @@ class invertible_1x1_conv(layers.Layer):
         
                 self.p = tf.Variable(np_p, name='P', trainable=False)
                 self.l = tf.Variable(np_l, name='L', trainable=True)
-                self.sign_s = tf.Variable(np_sign_s, name='sign_S',
-                                      trainable=False)
-                self.log_s = tf.Variable(np_log_s, name='log_S',
-                                          trainable=True)
-                self.u = tf.Variable(np_u, name='U',
-                                      trainable=True)
+                self.sign_s = tf.Variable(np_sign_s, name='sign_S', trainable=False)
+                self.log_s = tf.Variable(np_log_s, name='log_S', trainable=True)
+                self.u = tf.Variable(np_u, name='U', trainable=True)
                 
             else:
                 
@@ -157,8 +154,7 @@ class invertible_1x1_conv(layers.Layer):
         if self.type=='bijective':
             
             if self.LU:
-                l_mask = tf.convert_to_tensor(np.tril(np.ones([channels, channels], dtype=np.float32), -1),
-                                              dtype=tf.float32)
+                l_mask = tf.convert_to_tensor(np.tril(np.ones([channels, channels], dtype=np.float32), -1), dtype=tf.float32)
                 
                 l = self.l * l_mask + tf.eye(channels, channels)
                 u = self.u * tf.transpose(l_mask) + \
@@ -214,12 +210,12 @@ class invertible_1x1_conv(layers.Layer):
                 x = tf.nn.conv2d(x, conv_filter, [1, 1, 1, 1], "SAME", data_format="NHWC")
             
             objective *= -1
+        
         return x, objective
 
 
 class conv_stack(layers.Layer):
-    def __init__(self, mid_channels,
-                 output_channels):
+    def __init__(self, mid_channels, output_channels):
         super(conv_stack, self).__init__()
 
         self.conv1 = layers.Conv2D(
@@ -229,7 +225,9 @@ class conv_stack(layers.Layer):
             mid_channels, 1, 1, padding='same',
             activation='relu', use_bias=False)
         self.conv3 = layers.Conv2D(
-            output_channels, 3, 1, padding='same', activation='sigmoid', use_bias=False,kernel_initializer='zeros')
+            output_channels, 3, 1, padding='same', 
+            activation='sigmoid', use_bias=False, 
+            kernel_initializer='zeros')
 
     def call(self, x):
         return self.conv3(self.conv2(self.conv1(x)))
@@ -248,7 +246,7 @@ class affine_coupling(layers.Layer):
             self.conv_stack = Unet(out_channels) # Unet conv stack
         
         else:
-            self.conv_stack = conv_stack(128,out_channels) # regular convolutions
+            self.conv_stack = conv_stack(128, out_channels) # regular convolutions
         
 
     def call(self, x, reverse=False):
@@ -293,7 +291,7 @@ class revnet_step(layers.Layer):
         
         gamma = 1e-3 if self.latent_model else 1e-3
         self.conv = invertible_1x1_conv(
-            op_type=self.layer_type , activation = self.activation , gamma = gamma)
+            op_type=self.layer_type , activation=self.activation, gamma=gamma)
         self.coupling = affine_coupling()
 
     def call(self, x, reverse=False):
@@ -316,10 +314,10 @@ class revnet(layers.Layer):
         super(revnet, self).__init__()
         self.depth = kwargs.get('depth', 3)
         self.latent_model = kwargs.get('latent_model', False)
-        self.steps = [revnet_step(layer_type = 'bijective',
-                                  latent_model = self.latent_model ,
-                                  activation = 'linear')
-                      for _ in range(self.depth)]
+        self.steps = [revnet_step(layer_type='bijective', 
+                                  latent_model=self.latent_model, 
+                                  activation='linear') 
+                                  for _ in range(self.depth)]
         
     def call(self, x, reverse=False):
         objective = 0.0
@@ -330,7 +328,7 @@ class revnet(layers.Layer):
 
         for i in range(self.depth):
             step = steps[i]
-            x, curr_obj = step(x,reverse=reverse)
+            x, curr_obj = step(x, reverse=reverse)
             objective += curr_obj
 
         return x, objective
