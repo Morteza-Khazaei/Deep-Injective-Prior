@@ -27,11 +27,11 @@ setup(
         where='src', 
         exclude=['test']
     ),  # Don't include test directory in binary distribution
-    package_data={'DIP': ['default_config/config.ini']},
+    package_data={'dip': ['default_config/config.ini']},
     install_requires = requirements,
     entry_points ={
         'console_scripts': [
-            'DIP = DIP.core:main'
+            'dip = dip.main:main'
         ]
     },
     classifiers=[
