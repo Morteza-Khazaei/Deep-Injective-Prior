@@ -23,16 +23,16 @@ def train_step_mse(sample, inj_model, optimizer_inj):
 @tf.function
 def train_step_ml(sample, bij_model, pz, optimizer_bij):
     """ML training of the bijective sub-network"""
+
     with tf.GradientTape() as tape:
-        latent_sample, obj = bij_model(sample, reverse=False, training=True)
-        # Update the prior distribution
-        pz.prior = pz.prior.copy(loc=pz.mu, scale=tf.math.exp(pz.logsigma))
+        latent_sample, obj = bij_model(sample, reverse=False)
         p = -tf.reduce_mean(pz.prior.log_prob(latent_sample))
-        j = -tf.reduce_mean(obj)
-        loss = p + j
-        
-    gradients = tape.gradient(loss, bij_model.trainable_variables)
-    optimizer_bij.apply_gradients(zip(gradients, bij_model.trainable_variables))
+        j = -tf.reduce_mean(obj) # Log-det of Jacobian
+        loss =  p + j
+        variables = tape.watched_variables()
+        grads = tape.gradient(loss, variables)
+        optimizer_bij.apply_gradients(zip(grads, variables))
+
     return loss
 
 def data_normalization(x):

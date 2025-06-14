@@ -251,7 +251,7 @@ class scattering_solver(object):
             optimizer = tf.keras.optimizers.Adam(learning_rate=self.config.lr_inv)
             
             # Checkpoints of the solver
-            ckpt = tf.train.Checkpoint(x_guess_latent = x_guess_latent, optimizer= optimizer)
+            ckpt = tf.train.Checkpoint(x_guess_latent=x_guess_latent, optimizer=optimizer)
             manager = tf.train.CheckpointManager(
                 ckpt, os.path.join(self.prob_folder, 'MAP_checkpoints'), max_to_keep=3)
 
