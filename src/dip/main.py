@@ -6,8 +6,6 @@ import logging
 import imageio
 import numpy as np
 from time import time
-import tensorflow as tf
-import matplotlib.pyplot as plt
 from .utility import utils, scattering_utils
 from .models import injective, bijective, prior
 
@@ -36,6 +34,10 @@ def init_loggers(msg_level=logging.DEBUG):
 
 def main():
     
+    # Import TF and set up GPU here to prevent initialization errors
+    import tensorflow as tf
+    import matplotlib.pyplot as plt
+
     assert sys.version_info >= (3, 5), "DIP needs python >= 3.5.\n Run 'python --version' for more info."
     import argparse
     parser = argparse.ArgumentParser(description="Generative Model Training and Posterior Modeling", 
@@ -118,10 +120,6 @@ def main():
     os.chdir(workspace)
     logger.info(f'Current working directory: {os.getcwd()}')
 
-    # experiment path
-    exp_path = os.path.join('experiments', f'{args.dataset}_{args.inj_depth}_{args.bij_depth}_{args.desc}')
-    create_directory(exp_path)
-
     gpus = tf.config.experimental.list_physical_devices('GPU')
     if gpus:
         # Restrict TensorFlow to only use the first GPU
@@ -132,7 +130,14 @@ def main():
             # Visible devices must be set before GPUs have been initialized
             logger.debug(e)
 
-    train_dataset, test_dataset = utils.Dataset_preprocessing(dataset=args.dataset, img_size=args.img_size, batch_size=args.batch_size)
+
+    # experiment path
+    exp_path = os.path.join('experiments', f'{args.dataset}_{args.inj_depth}_{args.bij_depth}_{args.desc}')
+    create_directory(exp_path)
+
+    train_dataset, test_dataset = utils.Dataset_preprocessing(
+        dataset=args.dataset, img_size=args.img_size, batch_size=args.batch_size, ood_experiment=args.ood_experiment
+    )
     logger.info(f"Dataset is loaded: training and test dataset shape: {np.shape(next(iter(train_dataset)))}, {np.shape(next(iter(test_dataset)))}")
 
     _ , image_size , _ , c = np.shape(next(iter(train_dataset)))
@@ -184,36 +189,51 @@ def main():
         image_path_reconstructions = os.path.join(
             samples_folder, 'Reconstructions')
 
+        def save_image_grid(image_tensor, path, ngrid, image_size, c):
+            """Reshapes and saves a batch of images as a grid."""
+            # Denormalize from [-1, 1] to [0, 255]
+            image_array = (image_tensor.numpy() * 127.5 + 127.5)
+            
+            # Reshape into a grid
+            image_array = image_array[:, :, :, ::-1].reshape(
+                ngrid, ngrid, image_size, image_size, c
+            ).swapaxes(1, 2).reshape(ngrid * image_size, -1, c)
+            
+            # Clip and save
+            image_array = image_array.clip(0, 255).astype(np.uint8)
+            imageio.imwrite(path, image_array[:, :, 0])
+
+        @tf.function
+        def evaluation_step(inj_model, test_batch):
+            """Performs evaluation on a test batch and returns metrics on the GPU."""
+            z_test, _ = inj_model(test_batch, reverse=False, training=False)
+            test_recon, _ = inj_model(z_test, reverse=True, training=False)
+            # PSNR for data in [-1, 1] range has a max_val of 2.0
+            psnr = tf.image.psnr(test_batch, test_recon, max_val=2.0)
+            return tf.reduce_mean(psnr), test_recon
+
         os.makedirs(image_path_reconstructions, exist_ok=True)
+
+        # Fetch one batch of test data outside the loop for consistent evaluation
+        test_gt = next(iter(test_dataset))[:args.n_test]
 
         for epoch in range(args.n_epochs_inj):
             epoch_start = time()  
             for x in train_dataset:
                 utils.train_step_mse(x, inj_model, optimizer_inj)
-            
-            # Reconstrctions
-            test_gt = next(iter(test_dataset))[:args.n_test]
-            z_test = inj_model(test_gt[:args.n_test], reverse= False)[0] 
-            test_recon = inj_model(z_test , reverse = True)[0].numpy()[:args.n_test]
-            psnr = utils.PSNR(test_gt.numpy(), test_recon)
 
-            test_recon = test_recon[:, :, :, ::-1].reshape(ngrid, ngrid,
-                image_size, image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1,
-                c)*127.5 + 127.5
-            test_recon = test_recon.clip(0, 255).astype(np.uint8)
-            imageio.imwrite(os.path.join(image_path_reconstructions, '%d_recon.png' % (epoch,)),
-                test_recon[:,:,0]) # Reconstructed test images
+            # --- Evaluation and Logging ---
+            psnr, test_recon = evaluation_step(inj_model, test_gt)
+
+            # Save images less frequently to avoid I/O bottlenecks
+            if epoch % 5 == 0 or epoch == args.n_epochs_inj - 1:
+                save_image_grid(test_recon, os.path.join(image_path_reconstructions, f'{epoch}_recon.png'), ngrid, image_size, c)
+                save_image_grid(test_gt, os.path.join(image_path_reconstructions, f'{epoch}_gt.png'), ngrid, image_size, c)
             
-            test_gt = test_gt.numpy()[:, :, :, ::-1].reshape(ngrid, ngrid,image_size,
-                image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1, c)* 127.5 + 127.5
-            test_gt = test_gt.clip(0, 255).astype(np.uint8)
-            imageio.imwrite(os.path.join(image_path_reconstructions, '%d_gt.png' % (epoch,)),
-                test_gt[:,:,0]) # Ground truth test images
-            
-            epoch_end = time()       
+            epoch_end = time()
             ellapsed_time = epoch_end - epoch_start
             logger.info("Epoch: {:03d}| time: {:.0f}| PSNR: {:.3f}"
-                    .format(epoch, ellapsed_time, psnr))
+                    .format(epoch, ellapsed_time, psnr.numpy()))
                 
             with open(os.path.join(exp_path, 'results.txt'), 'a') as f:
                 f.write("Epoch: {:03d}| time: {:.0f}| PSNR: {:.3f}"
@@ -237,38 +257,40 @@ def main():
         image_path_generated = os.path.join(samples_folder, 'Generated samples')
         os.makedirs(image_path_generated, exist_ok=True)
 
-        z_inters = np.zeros([len(list(train_dataset)) * args.batch_size , latent_dim])
-        cnt = 0
-        for x in train_dataset:
-            z_inter, _ = inj_model(x, reverse = False)
-            z_inters[cnt*args.batch_size:(cnt+1)*args.batch_size] = z_inter.numpy()
-            cnt = cnt + 1
+        @tf.function
+        def get_latent_representation(x):
+            """Applies the injective model to a batch of images to get its latent representation."""
+            z, _ = inj_model(x, reverse=False, training=False)
+            return z
 
-        z_inters = tf.convert_to_tensor(z_inters, tf.float32)
-        z_inters_dataset = tf.data.Dataset.from_tensor_slices((z_inters))
-        z_inters_dataset = z_inters_dataset.shuffle(args.batch_size * 3).batch(args.batch_size , drop_remainder = True).prefetch(5)
-                
+        # Create a new dataset by applying the injective model to the training data on-the-fly.
+        # This leverages tf.data for efficiency, avoiding high memory usage and CPU-GPU data transfers.
+        z_inters_dataset = train_dataset.map(get_latent_representation, num_parallel_calls=tf.data.AUTOTUNE)
+        z_inters_dataset = z_inters_dataset.prefetch(tf.data.AUTOTUNE)
+
+        @tf.function
+        def generate_samples_step(pz, bij_model, inj_model, n_samples):
+            """Generates samples from the prior and passes them through the networks."""
+            z_base = pz.prior.sample(n_samples)
+            z_inter, _ = bij_model(z_base, reverse=True, training=False)
+            generated_samples, _ = inj_model(z_inter, reverse=True, training=False)
+            return generated_samples
+
         for epoch in range(args.n_epochs_bij):
             epoch_start = time()
+            # The loss from the last batch will be used for logging
             for x in z_inters_dataset:
-                ml_loss = utils.train_step_ml(x, bij_model, pz, optimizer_bij).numpy()
+                ml_loss = utils.train_step_ml(x, bij_model, pz, optimizer_bij)
                         
-            # Sampling
-            z_base = pz.prior.sample(args.n_test) # sampling from base (Gaussian) 
-            z_inter = bij_model(z_base , reverse=True)[0] # Intermediate samples 
-            generated_samples = inj_model(z_inter , reverse=True)[0].numpy() # Randmly generated samples
-            
-            generated_samples = generated_samples[:, :, :, ::-1].reshape(ngrid, ngrid,
-                image_size, image_size, c).swapaxes(1, 2).reshape(ngrid*image_size, -1,
-                c)*127.5 + 127.5
-            generated_samples = generated_samples.clip(0, 255).astype(np.uint8)
-            imageio.imwrite(os.path.join(image_path_generated, '%d_samples.png' % (epoch,)),
-                generated_samples[:,:,0]) # Generated samples
+            # Sampling and saving (less frequently to avoid I/O bottlenecks)
+            if epoch % 10 == 0 or epoch == args.n_epochs_bij - 1:
+                generated_samples = generate_samples_step(pz, bij_model, inj_model, args.n_test)
+                save_image_grid(generated_samples, os.path.join(image_path_generated, f'{epoch}_samples.png'), ngrid, image_size, c)
 
             epoch_end = time()       
             ellapsed_time = epoch_end - epoch_start
             logger.info("Epoch: {:03d}| time: {:.0f}| ML Loss: {:.3f}"
-                    .format(epoch, ellapsed_time, ml_loss))
+                    .format(epoch, ellapsed_time, ml_loss.numpy()))
                 
             with open(os.path.join(exp_path, 'results.txt'), 'a') as f:
                 f.write("Epoch: {:03d}| time: {:.0f}| ML Loss: {:.3f}"

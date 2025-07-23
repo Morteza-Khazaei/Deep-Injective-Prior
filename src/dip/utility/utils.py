@@ -35,28 +35,6 @@ def train_step_ml(sample, bij_model, pz, optimizer_bij):
 
     return loss
 
-def data_normalization(x):
-    """Normalize data to [-1, 1] range"""
-    x = x.astype(np.float32)
-    x = x - (x.max() + x.min()) / 2
-    x /= x.max() if x.max() > 0 else 1
-    return x
-
-def image_resizer(x, r):
-    """Resize images to target resolution"""
-    b, h, _, nch = np.shape(x)
-    y = np.zeros((b, r, r, nch))
-    
-    if x.shape[1] != r:
-        for i in range(b):
-            if nch == 1:
-                y[i, :, :, 0] = cv2.resize(x[i, :, :, 0], (r, r))
-            else:
-                y[i] = cv2.resize(x[i], (r, r))
-    else:
-        y = x
-    return y
-
 def PSNR(x_true, x_pred):
     """Calculate PSNR between true and predicted images"""
     s = 0
@@ -100,22 +78,28 @@ def Dataset_preprocessing(dataset='mnist', img_size=32, batch_size=64, ood_exper
         images = np.load('datasets/ellipses_64.npy')
         train_images, test_images = np.split(images, [55000])
 
-    r = img_size
-    train_images = image_resizer(train_images, r)
-    test_images = image_resizer(test_images, r)
-    train_images = data_normalization(train_images)
-    test_images = data_normalization(test_images)
-    
-    # Convert to appropriate dtype
-    train_images = tf.convert_to_tensor(train_images, dtype=tf.float32)
-    test_images = tf.convert_to_tensor(test_images, dtype=tf.float32)
-   
     train_dataset = tf.data.Dataset.from_tensor_slices(train_images)
     test_dataset = tf.data.Dataset.from_tensor_slices(test_images)
     
+    needs_resize = train_images.shape[1] != img_size
+
+    def preprocess_image(image):
+        """Resize and normalize images using TensorFlow operations."""
+        if needs_resize:
+            image = tf.image.resize(image, [img_size, img_size])
+        
+        image = tf.cast(image, tf.float32)
+        # Normalize per-image to [-1, 1]
+        image -= (tf.reduce_max(image) + tf.reduce_min(image)) / 2.0
+        max_val = tf.reduce_max(tf.abs(image))
+        image = tf.cond(max_val > 0.0, lambda: image / max_val, lambda: image)
+        return image
+
+    train_dataset = train_dataset.map(preprocess_image, num_parallel_calls=tf.data.AUTOTUNE)
+    test_dataset = test_dataset.map(preprocess_image, num_parallel_calls=tf.data.AUTOTUNE)
+
     SHUFFLE_BUFFER_SIZE = 256
     train_dataset = train_dataset.shuffle(SHUFFLE_BUFFER_SIZE).batch(
         batch_size, drop_remainder=True).prefetch(tf.data.AUTOTUNE)
     test_dataset = test_dataset.batch(batch_size).prefetch(tf.data.AUTOTUNE)
-
     return train_dataset, test_dataset

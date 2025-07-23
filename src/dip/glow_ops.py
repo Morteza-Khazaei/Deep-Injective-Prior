@@ -12,7 +12,7 @@ class upsqueeze(keras.layers.Layer):
         super(upsqueeze, self).__init__()
         self.f = factor
 
-    def call(self, x, reverse=False):
+    def call(self, x, reverse=False, training=True):
         f = self.f
 
         # upsampling via squeeze
@@ -59,7 +59,7 @@ class actnorm(keras.layers.Layer):
                                          shape=(1, 1, 1, input_shape[3]),
                                          trainable= True)
 
-    def call(self, x, reverse=False):
+    def call(self, x, reverse=False, training=True):
         if len(x.shape) == 2:
             red_axes = [0]
             dim = x.get_shape().as_list()[-1]
@@ -151,7 +151,7 @@ class invertible_1x1_conv(keras.layers.Layer):
                 
             self.w = tf.Variable(np_w, name='W', trainable=True, dtype=tf.float32)
                 
-    def call(self, x, reverse=False):
+    def call(self, x, reverse=False, training=True):
         # If height or width cannot be statically determined then they end up as
         # tf.int32 tensors, which cannot be directly multiplied with a floating
         # point tensor without a cast.
@@ -197,7 +197,7 @@ class invertible_1x1_conv(keras.layers.Layer):
                 prefactor = tf.matmul(self.w, self.w, transpose_a=True) + \
                     self.gamma**2*tf.eye(tf.shape(self.w)[1])
                 
-                w_inv = tf.matmul(tf.linalg.inv(prefactor), self.w, transpose_b=True)
+                w_inv = tf.linalg.solve(prefactor, tf.transpose(self.w))
                 conv_filter = tf.concat([w_inv, -w_inv], axis=1)
                 conv_filter = tf.reshape(conv_filter, [1, 1] + conv_filter.get_shape().as_list())
                 x = tf.nn.conv2d(x, conv_filter, [1, 1, 1, 1], "SAME", data_format="NHWC")
@@ -211,7 +211,7 @@ class invertible_1x1_conv(keras.layers.Layer):
                 else:
                     prefactor = tf.matmul(self.w, self.w, transpose_a=True) + \
                         self.gamma**2*tf.eye(tf.shape(self.w)[1])
-                    w_inv = tf.matmul(  tf.linalg.inv(prefactor) , self.w, transpose_b=True)
+                    w_inv = tf.linalg.solve(prefactor, tf.transpose(self.w))
                     
                 conv_filter = w_inv
                 conv_filter = tf.reshape(conv_filter, [1, 1] + conv_filter.get_shape().as_list())
@@ -261,13 +261,13 @@ class affine_coupling(keras.layers.Layer):
             self.conv_stack = conv_stack(128,out_channels) # regular convolutions
         
 
-    def call(self, x, reverse=False):
+    def call(self, x, reverse=False, training=True):
         # out_ch = x.get_shape().as_list()[-1]
         x1, x2 = tf.split(x, num_or_size_splits=2, axis=-1)
         
         # alpha = 0.01
         z1 = x1
-        log_scale_and_shift = self.conv_stack(z1)
+        log_scale_and_shift = self.conv_stack(z1, training=training)
         shift = log_scale_and_shift[:, :, :, 0::2]
         scale =  tf.math.exp(log_scale_and_shift[:, :, :, 1::2])
         # scale = alpha + (1-alpha)*scale # to be more stable in reverse
@@ -306,15 +306,15 @@ class revnet_step(keras.layers.Layer):
             op_type=self.layer_type , activation = self.activation , gamma = gamma)
         self.coupling = affine_coupling()
 
-    def call(self, x, reverse=False):
+    def call(self, x, reverse=False, training=True):
         obj = 0.0
         ops = [ self.norm, self.conv, self.coupling]
         
         if reverse:
             ops = ops[::-1]
 
-        for op in ops:  
-            x, curr_obj = op(x, reverse=reverse)
+        for op in ops:
+            x, curr_obj = op(x, reverse=reverse, training=training)
             obj += curr_obj
 
         return x, obj
@@ -330,8 +330,8 @@ class revnet(keras.layers.Layer):
                                   latent_model = self.latent_model ,
                                   activation = 'linear')
                       for _ in range(self.depth)]
-        
-    def call(self, x, reverse=False):
+
+    def call(self, x, reverse=False, training=True):
         objective = 0.0
         if reverse:
             steps = self.steps[::-1]
@@ -340,7 +340,7 @@ class revnet(keras.layers.Layer):
 
         for i in range(self.depth):
             step = steps[i]
-            x, curr_obj = step(x,reverse=reverse)
+            x, curr_obj = step(x, reverse=reverse, training=training)
             objective += curr_obj
 
         return x, objective
