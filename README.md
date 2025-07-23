@@ -1,4 +1,4 @@
-# Deep Injective Prior for Inverse Scattering
+# Deep Injective Prior for Inverse Scattering Problem (DIP-ISP)
 
 This repository contains the official implementation for "Deep Injective Priors for Inverse Scattering". The project provides a framework for training a generative model composed of an injective and a bijective subnetwork, and then using this model as a prior to solve inverse scattering problems.
 
