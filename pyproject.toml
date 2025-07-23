@@ -19,7 +19,7 @@ classifiers = [
 ]
 dependencies = [
     "tensorflow",
-    "tensorflow-probability",
+    "tensorflow-probability[tf]",
     "numpy",
     "scipy",
     "matplotlib",
