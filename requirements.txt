@@ -1,9 +1,0 @@
-tensorflow
-tensorflow-probability
-tf-keras
-numpy
-scipy
-matplotlib
-scikit-image
-opencv-python
-tqdm

@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dip"
+dynamic = ["version"]
+description = "The goal is to reconstruct object permittivity using scattered waves."
+readme = "README.md"
+requires-python = ">=3.5"
+license = {text = "MIT"}
+authors = [
+    {name = "Morteza Khazaei", email = "morteza.khazaei@usherbrooke.ca"},
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "tensorflow",
+    "tensorflow-probability",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "scikit-image",
+    "opencv-python",
+    "tqdm",
+]
+
+[project.urls]
+Homepage = "https://github.com/Morteza-Khazaei/Deep-Injective-Prior"
+
+[project.scripts]
+dip = "dip.main:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = {find = {where = ["src"], exclude = ["test*"]}}
+package-data = { "dip" = ["default_config/config.ini"] }
+
+[tool.setuptools.dynamic]
+version = {file = "VERSION"}
