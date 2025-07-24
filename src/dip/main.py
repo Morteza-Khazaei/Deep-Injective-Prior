@@ -6,8 +6,6 @@ import logging
 import imageio
 import numpy as np
 from time import time
-from .utility import utils, scattering_utils
-from .models import injective, bijective, prior
 
 
 @staticmethod
@@ -33,10 +31,6 @@ def init_loggers(msg_level=logging.DEBUG):
 
 
 def main():
-    
-    # Import TF and set up GPU here to prevent initialization errors
-    import tensorflow as tf
-    import matplotlib.pyplot as plt
 
     assert sys.version_info >= (3, 5), "DIP needs python >= 3.5.\n Run 'python --version' for more info."
     import argparse
@@ -120,16 +114,30 @@ def main():
     os.chdir(workspace)
     logger.info(f'Current working directory: {os.getcwd()}')
 
+    # It is crucial to configure the GPU before TensorFlow is initialized.
+    # Importing TensorFlow (or any module that imports it, like the project's models or utils)
+    # will initialize the TF runtime. By setting the visible devices first, we ensure
+    # TF only sees and uses the specified GPU.
+    import tensorflow as tf
+
     gpus = tf.config.experimental.list_physical_devices('GPU')
+    logger.info(f"Found GPUs: {gpus}")
     if gpus:
-        # Restrict TensorFlow to only use the first GPU
+        # Restrict TensorFlow to only use the selected GPU
         try:
             tf.config.experimental.set_visible_devices(gpus[args.gpu_num], 'GPU')
             tf.config.experimental.set_memory_growth(gpus[args.gpu_num], True)
+            logger.info(f"Successfully set GPU {args.gpu_num} as visible.")
         except RuntimeError as e:
             # Visible devices must be set before GPUs have been initialized
             logger.debug(e)
+            logger.warning(f"Could not set GPU {args.gpu_num}. It might already be in use or initialized.")
 
+    # Now that the GPU is configured, we can import the rest of the project modules
+    # that depend on TensorFlow.
+    from .utility import utils, scattering_utils
+    from .models import injective, bijective, prior
+    import matplotlib.pyplot as plt
 
     # experiment path
     exp_path = os.path.join('experiments', f'{args.dataset}_{args.inj_depth}_{args.bij_depth}_{args.desc}')

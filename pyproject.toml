@@ -18,7 +18,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "tensorflow",
+    "tensorflow[and-cuda]",
     "tensorflow-probability[tf]",
     "numpy",
     "scipy",
