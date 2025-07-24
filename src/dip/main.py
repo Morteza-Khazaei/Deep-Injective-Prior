@@ -291,7 +291,7 @@ def main():
                 ml_loss = utils.train_step_ml(x, bij_model, pz, optimizer_bij)
                         
             # Sampling and saving (less frequently to avoid I/O bottlenecks)
-            if epoch % 10 == 0 or epoch == args.n_epochs_bij - 1:
+            if epoch % 5 == 0 or epoch == args.n_epochs_bij - 1:
                 generated_samples = generate_samples_step(pz, bij_model, inj_model, args.n_test)
                 save_image_grid(generated_samples, os.path.join(image_path_generated, f'{epoch}_samples.png'), ngrid, image_size, c)
 
